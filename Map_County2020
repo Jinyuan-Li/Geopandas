@@ -1,0 +1,124 @@
+# -*- coding=GBK -*-
+import os
+import cv2
+import math
+import time
+import numpy as np
+import pandas as pd
+import geopandas as gpd
+import matplotlib.pyplot as plt
+from shapely.geometry.polygon import Polygon
+from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
+plt.rcParams.update({'figure.max_open_warning': 0})
+tStart = time.time()
+
+yyyy = 2019
+input_folder = '\\\\Tspc-nas\\中心資源\\統-自殺地圖\\自動地圖程式\\'
+output_folder = '\\\\Tspc-nas\\中心資源\\統-自殺地圖\\自動地圖程式\\測試地圖\\'
+# input_folder = 'D:\\OneDrive\\文件\\Data\\geopandas\\'
+# output_folder = 'C:\\Users\\user\\Desktop\\測試地圖\\'
+
+type = 958
+# 不同種類地圖設定
+T_NAME = ['自殺死亡人數(以死亡地點分)', '自殺粗死亡率', '標準化自殺死亡率\n      其他及未明示之方式自殺及自傷']
+# T_code = ['ndplace', 'cdr', 'sdr']
+T_code = ['ndplace', 'cdr', 'sdr' + str(type) + '_']
+T_k = [6, 6, 4]
+T_color = ['Blues', 'Greens', 'OrRd']
+T_labels1 = [['  0 - 100', '101 - 200', '201 - 300', '301 - 400', '401 - 500', ' > 500   '], [' 0.0 -  5.0', ' 5.0 - 10.0', '10.0 - 15.0', '15.0 - 20.0', '20.0 - 25.0', ' > 25.0  '], [' < 5.0   ', ' 5.5- 9.9', '10.0-14.9', ' >= 15.0  ']]
+
+# 印出中文字預設、讀檔案
+# 自殺死亡人數、自殺粗死亡率、標準化自殺死亡率、SMR_以全國為基準在Excel設定之欄位設定為nd、cdr、sdr + (民國年)
+# 如2017自殺死亡人數為nd106；2017自殺粗死亡率為cdr106
+plt.rcParams['font.sans-serif'] = ['DFKai-SB'] # 標楷體:DFKai-SB 正黑體:Microsoft JhengHei
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams["legend.framealpha"] = 0
+dt = pd.read_csv(input_folder + 'County_Data.csv', encoding='big5')
+dt = dt[['COUNTYID', T_code[0] + str(yyyy-1911), T_code[1] + str(yyyy-1911), T_code[2] + str(yyyy-1911)]]
+county = gpd.read_file(input_folder + 'Setting\COUNTY_MOI_1081121.shp', encoding='utf8')
+mapdata = pd.merge(county, dt, on='COUNTYID')
+
+for j in range(len(T_NAME)): # 地圖類型
+    if j == 2:
+        # 各區分組標示顏色與地名
+        insertRow1 = pd.DataFrame([['', Polygon([(120.4565526600001, 24.20718620500008), (120.4565526600001, 24.20718620500008), (120.4565526600001, 24.20718620500008)]), 0]], columns=['COUNTYNAME', 'geometry', T_code[j] + str(yyyy-1911)])
+        # insertRow2 = pd.DataFrame([['', Polygon([(120.4565526600001, 24.20718620500008), (120.4565526600001, 24.20718620500008), (120.4565526600001, 24.20718620500008)]), T_k[j]-1]], columns=['COUNTYNAME', 'geometry', T_code[j] + str(yyyy-1911)])
+        mapdata = pd.concat([mapdata, insertRow1], sort=False)
+        # mapdata = pd.concat([mapdata, insertRow2], sort=False)
+        ax = mapdata.plot(figsize=(15, 10), cmap=T_color[j], column=T_code[j] + str(yyyy-1911), k = T_k[j], scheme = 'equal_interval', legend=True, edgecolor = "black", linewidth=0.5) # 'PatchCollection' object
+        mapdata.apply(lambda x: ax.annotate(s=x['COUNTYNAME'], xy=x.geometry.centroid.coords[0], ha='center', bbox=dict(boxstyle='round, pad=0', fc='yellow', ec='none')), axis=1) # lemonchiffon
+        # 顏色表 https://finthon.com/matplotlib-color-list/      cmap色表 https://matplotlib.org/3.1.0/tutorials/colors/colormaps.html
+
+        # 移除過小的離島區域
+        ax.set_xlim(119.9, 122.8)
+        ax.set_ylim(21.8, 25.4)
+
+        # 圖示標題
+        leg = ax.get_legend()
+        leg.get_frame().set_linewidth(0)
+        leg.set_title('     ')
+
+        # # 圖示內文(分組資料)
+        # labels1 = T_labels1[j]
+        # leg.set_bbox_to_anchor((0.85, 0.25))
+        # for text, label1 in zip(leg.get_texts(), labels1):
+        #     text.set_text(label1)
+
+        # # 圖示內文(原始資料.0f)
+        # leg.set_bbox_to_anchor((0.85, 0.25))
+        # dtmax = dt[T_code[j] + str(yyyy - 1911)].max()
+        # interval = (dtmax - 0) / 6
+        # labels1 = ['%.f - %.f' % (0, math.floor(interval * 1)), '%.f - %.f' % (math.ceil(interval * 1), math.floor(interval * 2)), '%.f - %.f' % (math.ceil(interval * 2), math.floor(interval * 3)), '%.f - %.f' % (math.ceil(interval * 3), math.floor(interval * 4)), '%.f - %.f' % (math.ceil(interval * 4), math.floor(interval * 5)), '%.f - %.f' % (math.ceil(interval * 5), math.floor(interval * 6))]
+        # for text, label1 in zip(leg.get_texts(), labels1):
+        #     text.set_text(label1)
+
+        # 圖示內文(原始資料.1f)
+        leg.set_bbox_to_anchor((0.85, 0.25))
+        dtmax = dt[T_code[j] + str(yyyy - 1911)].max()
+        interval = (dtmax - 0) / 6
+        labels1 = ['%.1f - %.1f' % (0, interval), '%.1f - %.1f' % (interval, interval * 2), '%.1f - %.1f' % (interval * 2, interval * 3), '%.1f - %.1f' % (interval * 3, interval * 4), '%.1f - %.1f' % (interval * 4, interval * 5), '%.1f - %.1f' % (interval * 5, interval * 6)]
+        for text, label1 in zip(leg.get_texts(), labels1):
+            text.set_text(label1)
+
+        # 縣市標題、向北符號、比例尺與其他設定
+        ax.text(0.83, 0.25, str(yyyy) + '年' + T_NAME[j], fontsize=15, ha='center', transform=ax.transAxes)
+        ax.text(0.85, 0.9, u'\u25B2 \nN ', ha='center', fontsize=20, family='Arial', transform=ax.transAxes)
+        scalebar = AnchoredSizeBar(ax.transData, 1.796555103, '200 km', 'lower right', pad=0, frameon=False, label_top=True, size_vertical=0.001)
+        ax.add_artist(scalebar)
+        ax.set_axis_off()
+
+        # 輸出
+        # plt.savefig(output_folder + '1.全國' + str(yyyy) + '年' + T_NAME[j] +'.jpeg')
+        plt.savefig(output_folder + '1.全國' + str(yyyy) + '年' + '標準化自殺死亡率' + str(type) + '.jpeg')
+        # plt.show()
+
+        # 放大與聚合區域
+        xlim3 = [119.1, 117.8, 119.6, 120.2]
+        xlim4 = [121.1, 118.8, 120.6, 121.2]
+        ylim3 = [23.1, 24, 25.7, 23.2]
+        ylim4 = [24.1, 25, 26.7, 24.2]
+        copyy1 = [388, 425, 400, 565]
+        copyy2 = [588, 625, 600, 765]
+        copyx1 = [375, 634, 580, 473]
+        copyx2 = [575, 934, 780, 673]
+        pastey1 = [650, 400, 150, 400]
+        pastey2 = [850, 600, 350, 600]
+        pastex1 = [200, 150, 200, 870]
+        pastex2 = [400, 450, 400, 1070]
+        for p in range(4):
+            ax2 = mapdata.plot(figsize=(15, 10), cmap=T_color[j], column=T_code[j] + str(yyyy - 1911), k=T_k[j], scheme='equal_interval', edgecolor="black", linewidth=0.5)
+            mapdata.apply(lambda x: ax2.annotate(s=x['COUNTYNAME'], xy=x.geometry.centroid.coords[0], ha='center', bbox=dict(boxstyle='round, pad=0', fc='yellow', ec='none')), axis=1)
+            ax2.set_xlim(xlim3[p], xlim4[p])
+            ax2.set_ylim(ylim3[p], ylim4[p])
+            plt.savefig(output_folder + 'temp.jpeg')
+            # src1 = cv2.imdecode(np.fromfile(output_folder + '1.全國' + str(yyyy) + '年' + T_NAME[j] + '.jpeg', dtype=np.uint8), -1)
+            src1 = cv2.imdecode(np.fromfile(output_folder + '1.全國' + str(yyyy) + '年' + '標準化自殺死亡率' + str(type) + '.jpeg', dtype=np.uint8), -1)
+            src2 = cv2.imdecode(np.fromfile(output_folder + 'temp.jpeg', dtype=np.uint8), -1)
+            src2 = src2[copyy1[p]:copyy2[p], copyx1[p]:copyx2[p]] # Y1:Y2, X1:X2
+            src1[pastey1[p]:pastey2[p], pastex1[p]:pastex2[p]] = src2 # Y1:Y2, X1:X2
+            cv2.rectangle(src1, (pastex1[p], pastey1[p]), (pastex2[p], pastey2[p]), (0, 0, 0), 1) # (X1, Y1), (X2, Y2)
+            # cv2.imencode('.jpeg', src1)[1].tofile(output_folder + '1.全國' + str(yyyy) + '年' + T_NAME[j] + '.jpeg')
+            cv2.imencode('.jpeg', src1)[1].tofile(output_folder + '1.全國' + str(yyyy) + '年' + '標準化自殺死亡率'+ str(type) + '.jpeg')
+
+os.remove(output_folder + 'temp.jpeg')
+print('It cost ' + str(time.time()-tStart) + ' sec.')
