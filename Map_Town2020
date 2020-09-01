@@ -11,177 +11,254 @@ import matplotlib.colors as col
 import matplotlib.pyplot as plt
 from shapely.geometry.polygon import Polygon
 from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
-plt.rcParams.update({'figure.max_open_warning': 0})
-tStart = time.time()
+t0 = time.time()
 
 yyyy = 2019
+map_ptype = 99  # 製作的地圖主類別 99:全部 0:nd 1:cdr 2:sdr 3:smr
+map_stype = 99  # 製作的地圖次類別 99:全部 其餘參考下方map_type_list 輸入為數字由0開始
+map_county = 99  # 製作的地圖縣市 99:全部 其餘參考下方county_list 輸入除99外為文字
+output_yyyy = yyyy  # 輸出西元
+# output_yyyy = yyyy - 1911  # 輸出民國
 input_folder = '\\\\Tspc-nas\\中心資源\\統-自殺地圖\\自動地圖程式\\'
-output_folder = '\\\\Tspc-nas\\中心資源\\統-自殺地圖\\自動地圖程式\\測試地圖\\'
-# input_folder = 'D:\\Data\\geopandas\\'
-# output_folder = 'C:\\Users\\user\\Desktop\\測試地圖\\'
+output_folder = '\\\\Tspc-nas\\中心資源\\統-自殺地圖\\自動地圖程式\\產出地圖\\'
+
+# county_list = ['臺北市', '臺中市', '臺南市', '高雄市', '基隆市', '新竹市', '嘉義市', '新北市', '桃園市', '新竹縣', '宜蘭縣',
+#                '苗栗縣', '彰化縣', '南投縣', '雲林縣', '嘉義縣', '屏東縣', '澎湖縣', '花蓮縣', '臺東縣', '金門縣', '連江縣', ]
 
 # 不同種類地圖設定
-T_NAME = ['自殺死亡人數', '自殺粗死亡率', '標準化自殺死亡率', '以全國為基準之SMR']
-T_code = ['ndplace', 'cdr', 'sdr', 'smr_all_106_']
-T_k = [6, 6, 4, 9]
-T_color = ['Blues', 'Greens', 'OrRd', T_code[3]]
-T_labels1 = [[' 0 - 15', '16 - 30', '31 - 45', '46 - 60', '61 - 75', ' > 75  '], [' 0.0 - 15.0', '15.0 - 30.0', '30.0 - 45.0', '45.0 - 60.0', '60.0 - 75.0', ' > 75.0    '], [' < 5.0   ', ' 5.5- 9.9', '10.0-14.9', ' >= 15.0 '], [' -       ', ' < 0.5   ', '0.5 -0.67', '0.67-0.9 ', '0.9 -1.1 ', '1.1 -1.5 ', '1.5 -2.0 ', '2.0 -5.0 ', ' >= 5.0  ']]
-cm.register_cmap(cmap=col.LinearSegmentedColormap.from_list(T_code[3], ['#888888', '#0040ff', '#4080ff', '#80bfff', '#ffffff', '#ffbfbf', '#ff8080', '#ff4040', '#ff0000']))
+# 自殺死亡人數、自殺粗死亡率、標準化自殺死亡率、SMR_以全國為基準在Excel設定之欄位名稱為nd、cdr、sdr、smr + (民國年)
+# 如106自殺死亡人數為nd106；106自殺粗死亡率為cdr106
+map_type_list = [['自殺死亡人數', '自殺死亡人數\n(以死亡地點分)'],
+                 ['自殺粗死亡率'],
+                 ['標準化自殺死亡率',
+                  '標準化自殺死亡率\n以固體或液體物質自殺及自為中毒', '標準化自殺死亡率\n由其他氣體及蒸氣自殺及自為中毒',
+                  '標準化自殺死亡率\n吊死、勒死及窒息之自殺及自傷', '標準化自殺死亡率\n溺水 (淹死) 自殺及自傷',
+                  '標準化自殺死亡率\n鎗砲及爆炸物自殺及自傷', '標準化自殺死亡率\n切穿工具自殺及自傷',
+                  '標準化自殺死亡率\n由高處跳下自殺及自傷', '標準化自殺死亡率\n其他及未明示之方式自殺及自傷'],
+                 ['縣市以全國為基準\n標準化死亡比', '以縣市為基準\n標準化死亡比', '以縣市為基準(15-24歲)\n標準化死亡比',
+                  '以縣市為基準(25-44歲)\n標準化死亡比', '以縣市為基準(45-64歲)\n標準化死亡比', '以縣市為基準(65歲以上)\n標準化死亡比']]
+column_list = [['nd', 'ndplace'],
+               ['cdr'],
+               ['sdr', 'sdr950_', 'sdr952_', 'sdr953_', 'sdr954_', 'sdr955_', 'sdr956_', 'sdr957_', 'sdr958_'],
+               ['smr_all_106_', 'smr_city_106_', 'smr15_24_106_', 'smr25_44_106_', 'smr45_64_106_', 'smr65up_106_']]
+group_list = [6, 6, 4, 9]
+color_list = ['Blues', 'Greens', 'OrRd', 'Smr']
+cm.register_cmap(cmap=col.LinearSegmentedColormap.from_list('Smr', ['#888888', '#0040ff', '#4080ff', '#80bfff', '#ffffff',
+                                                                    '#ffbfbf', '#ff8080', '#ff4040', '#ff0000']))
+labels_list = [[' 0 - 15', '16 - 30', '31 - 45', '46 - 60', '61 - 75', ' > 75  '],
+               [' 0.0 - 15.0', '15.0 - 30.0', '30.0 - 45.0', '45.0 - 60.0', '60.0 - 75.0', ' > 75.0    '],
+               [' < 5.0   ', ' 5.5- 9.9', '10.0-14.9', ' >= 15.0 '],
+               [' -       ', ' < 0.5   ', '0.5 -0.67', '0.67-0.9 ', '0.9 -1.1 ', '1.1 -1.5 ', '1.5 -2.0 ', '2.0 -5.0 ', ' >= 5.0  ']]
+half_shape = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '(', ')', '[', ']', '-']
 
-# 印出中文字預設、讀檔案
-# 自殺死亡人數、自殺粗死亡率、標準化自殺死亡率、SMR_以全國為基準在Excel設定之欄位設定為nd、cdr、sdr、smr + (民國年)
-# 如2017自殺死亡人數為nd106；2017自殺粗死亡率為cdr106
-plt.rcParams['font.sans-serif'] = ['DFKai-SB'] # 標楷體:DFKai-SB 正黑體:Microsoft JhengHei
-plt.rcParams['axes.unicode_minus'] = False
+# 印出中文字及其它預設條件
 plt.rcParams["legend.framealpha"] = 0
-dt = pd.read_csv(input_folder + 'Town_Data.csv', encoding='big5')
-dt = dt[['TOWNID', T_code[0] + str(yyyy-1911), T_code[1] + str(yyyy-1911), T_code[2] + str(yyyy-1911), T_code[3] + str(yyyy-1911)]]
-town = gpd.read_file(input_folder + 'Setting\TOWN_MOI_1080726.shp', encoding='utf8')
-town = pd.merge(town, dt, on='TOWNID')
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.sans-serif'] = ['DFKai-SB'] # 標楷體:DFKai-SB 正黑體:Microsoft JhengHei
+plt.rcParams.update({'figure.max_open_warning': 0})
+
+# 讀檔案
+shape = gpd.read_file(input_folder + 'Setting\TOWN_MOI_1080726.shp', encoding='utf8')
+data = pd.read_csv(input_folder + 'Town_Data.csv', encoding='big5')
+mapdata = pd.merge(shape, data, on='TOWNID')
 setting = pd.read_csv(input_folder + 'Setting\\county_setting.csv', encoding='big5')
 
 # 個別縣市地圖設定
-C_NAME = setting['C_NAME']
-C_Polygon, C_legloc = [], []
+c_name = setting['C_NAME']
+c_polygon, c_legloc = [], []
 for l in range(len(setting['C_NAME'])):
-    C_Polygon.append((setting['C_Polygon1'][l], setting['C_Polygon2'][l]))
-    C_legloc.append((setting['C_legloc1'][l], setting['C_legloc2'][l]))
-C_titloc1 = setting['C_titloc1']
-C_titloc2 = setting['C_titloc2']
-C_north1 = setting['C_north1']
-C_north2 = setting['C_north2']
+    c_polygon.append((setting['C_Polygon1'][l], setting['C_Polygon2'][l]))
+    c_legloc.append((setting['C_legloc1'][l], setting['C_legloc2'][l]))
+c_titloc1, c_titloc2 = setting['C_titloc1'], setting['C_titloc2']
+c_north1, c_north2 = setting['C_north1'], setting['C_north2']
 
-# county_list = ['臺北市', '臺中市', '臺南市', '高雄市', '基隆市', '新竹市', '嘉義市', '新北市', '桃園市', '新竹縣', '宜蘭縣', '苗栗縣', '彰化縣', '南投縣', '雲林縣', '嘉義縣', '屏東縣', '澎湖縣', '花蓮縣', '臺東縣', '金門縣', '連江縣', ]
+for dir in range(len(c_name)):  # 製作地區分類各目錄
+    if not os.path.isdir(output_folder + '地區分類\\' + str(dir + 1) + '.' + c_name[dir]):
+        os.mkdir(output_folder + '地區分類\\' + str(dir + 1) + '.' + c_name[dir])
 
-for j in range(len(T_NAME)): # 地圖類型
-    if j == 3:
-        for i in range(len(C_NAME)): # 地圖縣市
-            # if C_NAME[i] == '新北市':
-                mapdata = town[town.loc[:,'COUNTYNAME'] == C_NAME[i]]
-                mapdatac = mapdata.shape[0]
-                group = T_k[j]
-                dtmax = mapdata[T_code[j] + str(yyyy - 1911)].max()
+for ptype in range(len(map_type_list)):  # 地圖類型(primary and secondary type)
+    for stype in range(len(map_type_list[ptype])):
+        if ((ptype == map_ptype or map_ptype == 99) and (stype == map_stype or map_stype == 99)):  #測試或製作特定類別地圖使用
+            for county in range(len(c_name)):  # 地圖縣市
+                if c_name[county] == map_county or map_county == 99:
+                    mapdatac = mapdata[mapdata.loc[:, 'COUNTYNAME'] == c_name[county]]
+                    groupo = mapdatac.shape[0]
 
-                # 修改過少鄉鎮之分組數
-                if j == 0 or j == 1:
-                    if C_NAME[i] == '新竹市' or C_NAME[i] == '嘉義市' or C_NAME[i] == '連江縣':
-                        group = mapdata[T_code[j] + str(yyyy - 1911)].count()
+                    # 修改過少鄉鎮之分組數
+                    group = group_list[ptype]
+                    if ptype <= 1 or ptype == 2 and stype >= 1:
+                        if c_name[county] == '新竹市' or c_name[county] == '嘉義市' or c_name[county] == '連江縣':
+                            group = mapdatac[column_list[ptype][stype] + str(yyyy - 1911)].count()
 
-                # 修改過少nd之分組數
-                if j == 0:
-                    if dtmax < group:
-                        group = dtmax + 1
+                    # 修改過少nd之分組數(僅適用無小數點資料)
+                    dtmax = mapdatac[column_list[ptype][stype] + str(yyyy - 1911)].max()
+                    if ptype == 0:
+                        if dtmax < group:
+                            group = dtmax + 1
 
-                # 各區分組標示顏色與地名
-                insertRow1 = pd.DataFrame([['', Polygon([C_Polygon[i], C_Polygon[i], C_Polygon[i]]), 0]], columns=['TOWNNAME', 'geometry', T_code[j] + str(yyyy-1911)])
-                mapdata = pd.concat([mapdata, insertRow1], sort=False)
-                if j >= 2:
-                    insertRow2 = pd.DataFrame([['', Polygon([C_Polygon[i], C_Polygon[i], C_Polygon[i]]), T_k[j] - 1]], columns=['TOWNNAME', 'geometry', T_code[j] + str(yyyy - 1911)])
-                    mapdata = pd.concat([mapdata, insertRow2], sort=False)
-                ax = mapdata.plot(figsize=(15, 10), cmap=T_color[j], column=T_code[j] + str(yyyy-1911), k = group, scheme = 'equal_interval', legend=True, edgecolor = "black", linewidth=0.5)
-                mapdata.apply(lambda x: ax.annotate(s=x['TOWNNAME'], xy=x.geometry.centroid.coords[0], ha='center', bbox=dict(boxstyle='round, pad=0', fc='yellow', ec='none')), axis=1) # lemonchiffon
-                # 顏色表 https://finthon.com/matplotlib-color-list/      cmap色表 https://matplotlib.org/3.1.0/tutorials/colors/colormaps.html
+                    # 各區分組標示顏色與地名
+                    # 在地圖加上一筆0的資料，確保分組時會以0為最低值
+                    insertRow1 = pd.DataFrame([['', Polygon([c_polygon[county], c_polygon[county], c_polygon[county]]), 0]],
+                                              columns=['TOWNNAME', 'geometry', column_list[ptype][stype] + str(yyyy - 1911)])
+                    mapdatac = pd.concat([mapdatac, insertRow1], sort=False)
 
-                # 移除過小的離島區域
-                C_cut = ['基隆市', '宜蘭縣', '高雄市', '澎湖縣', '金門縣', '連江縣']
-                xlim1 = [121.610, 121.2, 120.1, 119.38, 118.13, 119.88]
-                xlim2 = [121.82, 122.1, 121.1, 119.72, 118.5, 120.05]
-                ylim1 = [25.04, 24.2, 22.42, 23.45, 24.35, 26.12]
-                ylim2 = [25.21, 25.04, 23.52, 23.78, 24.55, 26.3]
-                for m, n in enumerate(C_cut):
-                    if C_NAME[i] == n:
-                        ax.set_xlim(xlim1[m], xlim2[m])
-                        ax.set_ylim(ylim1[m], ylim2[m])
+                    # 在地圖加上一筆該組最高值的資料，確保分組時之組距(僅用於預設固定組距)
+                    if ptype == 3 or ptype == 2 and stype == 0:
+                        insertRow2 = pd.DataFrame([['', Polygon([c_polygon[county], c_polygon[county], c_polygon[county]]), group_list[ptype] - 1]],
+                                                  columns=['TOWNNAME', 'geometry', column_list[ptype][stype] + str(yyyy - 1911)])
+                        mapdatac = pd.concat([mapdatac, insertRow2], sort=False)
+                    elif dtmax == 0: # 該區域全0
+                        group = 1
+                        insertRow2 = pd.DataFrame([['', Polygon([c_polygon[county], c_polygon[county], c_polygon[county]]), 1]],
+                                                  columns=['TOWNNAME', 'geometry', column_list[ptype][stype] + str(yyyy - 1911)])
+                        mapdatac = pd.concat([mapdatac, insertRow2], sort=False)
 
-                # 圖示標題 # \n可換行
-                # title1 = '     ' + str(yyyy) + '年' + T_NAME[j]
-                # title1 = '   ' + str(yyyy) + '年' + '自殺死亡人數\n   (以死亡地點分)'
-                # title1 = '     以' + C_NAME[i] + '為基準(65歲以上)\n     2017-2019年SMR'
-                # title1 = '以' + C_NAME[i] + '為基準\n2017-2019年SMR'
-                title1 = ' ' + C_NAME[i] + '以全國' + '為基準\n 2017-2019年SMR'
-                title2 = '[' + str(mapdatac) + ']'
-                leg = ax.get_legend()
-                leg.get_frame().set_linewidth(0)
-                leg.set_title(title1 + title2)
-                titler = title1.replace('\n', '').replace(' ', '')
-                if j != 3:
-                    titler = C_NAME[i] + titler
+                    # 各區域分組並依數值上色
+                    # 顏色表 https://finthon.com/matplotlib-color-list/
+                    # cmap色表 https://matplotlib.org/3.1.0/tutorials/colors/colormaps.html
+                    ax = mapdatac.plot(figsize=(15, 10), cmap=color_list[ptype], column=column_list[ptype][stype] + str(yyyy - 1911),
+                                       k=group, scheme = 'equal_interval', legend=True, edgecolor="black", linewidth=0.5)
+                    mapdatac.apply(lambda x: ax.annotate(s=x['TOWNNAME'], xy=x.geometry.centroid.coords[0], ha='center',
+                                                         bbox=dict(boxstyle='round, pad=0', fc='yellow', ec='none')), axis=1)  # lemonchiffon
 
-                if j == 0:
-                    # 圖示內文(原始資料.0f)
-                    count0, count1, count2, count3, count4, count5, count6, count7, count8 = -1, 0, 0, 0, 0, 0, 0, 0, 0
-                    interval = dtmax / group
-                    labels1 = ['%.f - %.f' % (0, math.floor(interval * 1)), '%.f - %.f' % (math.ceil(interval * 1), math.floor(interval * 2)), '%.f - %.f' % (math.ceil(interval * 2), math.floor(interval * 3)), '%.f - %.f' % (math.ceil(interval * 3), math.floor(interval * 4)), '%.f - %.f' % (math.ceil(interval * 4), math.floor(interval * 5)), '%.f - %.f' % (math.ceil(interval * 5), math.floor(interval * 6))]
-                    for l in mapdata[T_code[j] + str(yyyy - 1911)]:
-                        for k in range(group):
-                            if l >= math.ceil(interval * k) and l <= math.floor(interval * (k + 1)):
-                                locals()["count%s" % k] += 1
-                elif j == 1:
-                    # 圖示內文(原始資料.1f)
-                    count0, count1, count2, count3, count4, count5, count6, count7, count8 = -1, 0, 0, 0, 0, 0, 0, 0, 0
-                    interval = dtmax / group
-                    labels1 = ['%.1f - %.1f' % (0, interval), '%.1f - %.1f' % (interval, interval * 2), '%.1f - %.1f' % (interval * 2, interval * 3), '%.1f - %.1f' % (interval * 3, interval * 4), '%.1f - %.1f' % (interval * 4, interval * 5), '%.1f - %.1f' % (interval * 5, interval * 6)]
-                    for l in mapdata[T_code[j] + str(yyyy - 1911)]:
-                        for k in range(group):
-                            if l >= interval * k and l < interval * (k + 1):
-                                locals()["count%s" % k] += 1
-                    kk = group - 1
-                    locals()["count%s" % kk] += 1
-                else:
-                    # 圖示內文(分組資料)
+                    # 限制地圖經緯度以移除過小的離島區域
+                    lim_list = ['基隆市', '宜蘭縣', '高雄市', '澎湖縣', '金門縣', '連江縣']
+                    xlim1 = [121.610, 121.2, 120.1, 119.38, 118.13, 119.88]
+                    xlim2 = [121.82, 122.1, 121.1, 119.72, 118.5, 120.05]
+                    ylim1 = [25.04, 24.2, 22.42, 23.45, 24.35, 26.12]
+                    ylim2 = [25.21, 25.04, 23.52, 23.78, 24.55, 26.3]
+                    for limcx, limc in enumerate(lim_list):
+                        if c_name[county] == limc:
+                            ax.set_xlim(xlim1[limcx], xlim2[limcx])
+                            ax.set_ylim(ylim1[limcx], ylim2[limcx])
+
+                    # 圖示標題、legend位置 \n可換行
+                    leg = ax.get_legend()
+                    leg.get_frame().set_linewidth(0)
+                    if ptype != 3:
+                        title1 = str(output_yyyy) + '年' + map_type_list[ptype][stype]
+                        titler = c_name[county] + title1.replace(' ', '').replace('\n', '')
+                        folder_name = map_type_list[ptype][stype].replace(' ', '').replace('\n', '')
+                    elif ptype == 3:
+                        title1 = map_type_list[ptype][stype].replace('\n', '\n' + str(output_yyyy - 2) + '-' + str(output_yyyy) + '年').replace('縣市', c_name[county])
+                        titler = title1.replace(' ', '').replace('\n', '')
+                        folder_name = titler.replace(c_name[county], '縣市')
+                    title2 = '[' + str(groupo) + ']'
+
+                    # 處理各地圖類別名稱長度不同導致legend位置不同問題
+                    blank1, blank2 = 0, 0
+                    if title1.count('\n') == 0:
+                        for hs in half_shape:
+                            titlec = title1 + title2
+                            blank1 += titlec.count(hs)
+                        leg.set_title("{0:{1}<30}".format(titlec, chr(12288)) + ' ' * blank1)
+                    else:
+                        title1s1 = title1.split('\n')[0]
+                        title1s2 = title1.split('\n')[1]
+                        titlec = title1s2 + title2
+                        for hs in half_shape:
+                            blank1 += title1s1.count(hs)
+                            blank2 += titlec.count(hs)
+                        leg.set_title("{0:{1}<30}".format(title1s1, chr(12288)) + ' ' * blank1 + '\n' +
+                                      "{0:{1}<30}".format(titlec, chr(12288)) + ' ' * blank2)
+
+                    # 設定legend分組區間顯示方式
                     count0, count1, count2, count3, count4, count5, count6, count7, count8 = 0, 0, 0, 0, 0, 0, 0, 0, 0
-                    for k in range(T_k[j]):
-                        locals()["count%s" % k] = mapdata[T_code[j] + str(yyyy - 1911)][mapdata[T_code[j] + str(yyyy - 1911)] == k].count()
-                    kk = group-1
-                    count0 -= 1
-                    locals()["count%s" % kk] -= 1
-                    labels1 = T_labels1[j]
+                    if dtmax == 0:  # 圖示內文(該區域全0)
+                        count0 = mapdatac[column_list[ptype][stype] + str(yyyy - 1911)].count() - 2
+                        labels1 = ['0.0 - 0.0']
+                    elif ptype == 0:  # 圖示內文(原始資料.0f)
+                        count0 -= 1
+                        interval = dtmax / group
+                        groupl, groupu, labels1 = [], [], []
+                        for g in range(group):
+                            if g > 0 and math.ceil(interval * g) == math.floor(interval * g):
+                                grouplt = math.ceil(interval * g) + 1
+                                groupl.append(grouplt)
+                            else:
+                                grouplt = math.ceil(interval * g)
+                                groupl.append(grouplt)
+                            groupu.append(math.floor(interval * (g + 1)))
+                            labels1.append('%.f - %.f' % (grouplt, math.floor(interval * (g + 1))))
+                        for town in mapdatac[column_list[ptype][stype] + str(yyyy - 1911)]:
+                            for g in range(group):
+                                if town >= groupl[g] and town <= groupu[g]:
+                                    locals()["count%s" % g] += 1
+                    elif ptype == 1 or ptype == 2 and stype >= 1:  # 圖示內文(原始資料.1f)
+                        count0 -= 1
+                        interval = dtmax / group
+                        labels1 = []
+                        for g in range(group):
+                            labels1.append('%.1f - %.1f' % (interval * g, interval * (g + 1)))
+                        for town in mapdatac[column_list[ptype][stype] + str(yyyy - 1911)]:
+                            for g in range(group):
+                                if town > interval * g and town <= interval * (g + 1):
+                                    locals()["count%s" % g] += 1
+                            if town > interval * group:
+                                groupr = group - 1
+                                locals()["count%s" % groupr] += 1
+                            if town == 0:
+                                count0 += 1
+                    else:  # 圖示內文(已分組資料)
+                        for g in range(group):
+                            locals()["count%s" % g] = mapdatac[column_list[ptype][stype] + str(yyyy - 1911)][mapdatac[column_list[ptype][stype] + str(yyyy - 1911)] == g].count()
+                        groupr = group - 1
+                        count0 -= 1
+                        locals()["count%s" % groupr] -= 1
+                        labels1 = labels_list[ptype]
 
-                # 圖示內文(共用區域)
-                labels2 = [count0, count1, count2, count3, count4, count5, count6, count7, count8]
-                leg.set_bbox_to_anchor(C_legloc[i])
-                for text, label1, label2 in zip(leg.get_texts(), labels1, labels2):
-                    text.set_text(label1+' [' + str(label2) + ']')
+                    # 圖示內文(共用區域)
+                    labels2 = [count0, count1, count2, count3, count4, count5, count6, count7, count8]
+                    leg.set_bbox_to_anchor(c_legloc[county])
+                    for text, label1, label2 in zip(leg.get_texts(), labels1, labels2):
+                        text.set_text("{:<55}".format(label1+' [' + str(label2) + ']'))
 
-                # 縣市標題、向北符號、比例尺與其他設定
-                ax.text(C_north1[i], C_north2[i], u'\u25B2 \nN ', ha='center', fontsize=20, family='Arial', transform=ax.transAxes)
-                if j != 3:
-                    ax.text(C_titloc1[i], C_titloc2[i], C_NAME[i], fontsize=15, ha='center', transform=ax.transAxes)
-                scalebar = AnchoredSizeBar(ax.transData, 0.0898277551716521, '10 km', 'lower right', pad=0, frameon=False, label_top=True, size_vertical=0.001)
-                ax.add_artist(scalebar)
-                ax.set_axis_off()
+                    # 縣市標題、向北符號、比例尺與其他設定
+                    ax.text(c_north1[county], c_north2[county], u'\u25B2 \nN ', ha='center', fontsize=20,
+                            family='Arial', transform=ax.transAxes)
+                    if ptype != 3:
+                        ax.text(c_titloc1[county], c_titloc2[county], c_name[county], fontsize=15, ha='center',
+                                transform=ax.transAxes)
+                    scalebar = AnchoredSizeBar(ax.transData, 0.0898277551716521, '10 km', 'lower right',
+                                               pad=0, frameon=False, label_top=True, size_vertical=0.001)
+                    ax.add_artist(scalebar)
+                    ax.set_axis_off()
 
-                # 輸出
-                plt.savefig(output_folder + str(i + 1) + '.' + titler + '.jpeg')
-                # plt.show()
+                    # 輸出
+                    output_file = output_folder + '地區分類\\' + str(county + 1) + '.' + c_name[county] + '\\' + str(county + 1) + '.' + titler + '.jpeg'
+                    plt.savefig(output_file)
+                    # plt.show()
 
-                # 放大與聚合區域
-                C_com = ['臺中市', '高雄市', '高雄市', '屏東縣', '澎湖縣', '金門縣', '連江縣', '連江縣']
-                xlim3 = [120.440, 120.175, 120.13, 120.4, 119.38, 119.23, 120.38, 119.9]
-                xlim4 = [120.80, 120.525, 120.485, 120.9, 119.72, 119.6, 120.55, 120.07]
-                ylim3 = [24.06, 22.466, 22.4, 22.35, 23.15, 24.85, 26.22, 25.9]
-                ylim4 = [24.2, 22.740, 22.99, 23.15, 23.48, 25.05, 26.4, 26.08]
-                copyy1 = [370, 325, 225, 555, 293, 280, 150, 490]
-                copyy2 = [570, 575, 575, 855, 813, 480, 350, 750]
-                copyx1 = [815, 525, 603, 550, 430, 785, 750, 440]
-                copyx2 = [1115, 810, 803, 750, 780, 1035, 1000, 840]
-                pastey1 = [100, 630, 150, 580, 270, 200, 130, 360]
-                pastey2 = [300, 880, 500, 880, 790, 400, 330, 620]
-                pastex1 = [600, 700, 415, 550, 180, 200, 250, 250]
-                pastex2 = [900, 985, 615, 750, 530, 450, 500, 650]
-                for p, q in enumerate(C_com):
-                    if C_NAME[i] == q:
-                        ax2 = mapdata.plot(figsize=(15, 10), cmap=T_color[j], column=T_code[j] + str(yyyy - 1911), k=T_k[j], scheme='equal_interval', edgecolor="black", linewidth=0.5)
-                        mapdata.apply(lambda x: ax2.annotate(s=x['TOWNNAME'], xy=x.geometry.centroid.coords[0], ha='center', bbox=dict(boxstyle='round, pad=0', fc='yellow', ec='none')), axis=1)
-                        ax2.set_xlim(xlim3[p], xlim4[p])
-                        ax2.set_ylim(ylim3[p], ylim4[p])
-                        plt.savefig(output_folder + 'temp.jpeg')
-                        src1 = cv2.imdecode(np.fromfile(output_folder + str(i + 1) + '.' + titler + '.jpeg', dtype=np.uint8), -1)
-                        src2 = cv2.imdecode(np.fromfile(output_folder + 'temp.jpeg', dtype=np.uint8), -1)
-                        src2 = src2[copyy1[p]:copyy2[p], copyx1[p]:copyx2[p]] # Y1:Y2, X1:X2
-                        src1[pastey1[p]:pastey2[p], pastex1[p]:pastex2[p]] = src2 # Y1:Y2, X1:X2
-                        cv2.rectangle(src1, (pastex1[p], pastey1[p]), (pastex2[p], pastey2[p]), (0, 0, 0), 1) # (X1, Y1), (X2, Y2)
-                        cv2.imencode('.jpeg', src1)[1].tofile(output_folder + str(i + 1) + '.' + titler + '.jpeg')
+                    # 放大與聚合區域
+                    c_com = ['臺中市', '高雄市', '高雄市', '屏東縣', '澎湖縣', '金門縣', '連江縣', '連江縣']
+                    xlim3 = [120.440, 120.175, 120.13, 120.4, 119.38, 119.23, 120.38, 119.9]
+                    xlim4 = [120.80, 120.525, 120.485, 120.9, 119.72, 119.6, 120.55, 120.07]
+                    ylim3 = [24.06, 22.466, 22.4, 22.35, 23.15, 24.85, 26.22, 25.9]
+                    ylim4 = [24.2, 22.740, 22.99, 23.15, 23.48, 25.05, 26.4, 26.08]
+                    copyy1 = [370, 325, 225, 555, 293, 280, 150, 490]
+                    copyy2 = [570, 575, 575, 855, 813, 480, 350, 750]
+                    copyx1 = [815, 525, 603, 550, 430, 785, 750, 440]
+                    copyx2 = [1115, 810, 803, 750, 780, 1035, 1000, 840]
+                    pastey1 = [100, 630, 150, 580, 270, 200, 130, 360]
+                    pastey2 = [300, 880, 500, 880, 790, 400, 330, 620]
+                    pastex1 = [600, 700, 415, 550, 180, 200, 250, 250]
+                    pastex2 = [900, 985, 615, 750, 530, 450, 500, 650]
+                    for srx, sr in enumerate(c_com):
+                        if c_name[county] == sr:
+                            ax2 = mapdatac.plot(figsize=(15, 10), cmap=color_list[ptype], column=column_list[ptype][stype] + str(yyyy - 1911), k=group_list[ptype],
+                                                scheme='equal_interval', edgecolor="black", linewidth=0.5)
+                            mapdatac.apply(lambda x: ax2.annotate(s=x['TOWNNAME'], xy=x.geometry.centroid.coords[0], ha='center',
+                                                                  bbox=dict(boxstyle='round, pad=0', fc='yellow', ec='none')), axis=1)
+                            ax2.set_xlim(xlim3[srx], xlim4[srx])
+                            ax2.set_ylim(ylim3[srx], ylim4[srx])
+                            plt.savefig(output_folder + 'temp.jpeg')
+                            src1 = cv2.imdecode(np.fromfile(output_file, dtype=np.uint8), -1)
+                            src2 = cv2.imdecode(np.fromfile(output_folder + 'temp.jpeg', dtype=np.uint8), -1)
+                            src2 = src2[copyy1[srx]:copyy2[srx], copyx1[srx]:copyx2[srx]] # Y1:Y2, X1:X2
+                            src1[pastey1[srx]:pastey2[srx], pastex1[srx]:pastex2[srx]] = src2 # Y1:Y2, X1:X2
+                            cv2.rectangle(src1, (pastex1[srx], pastey1[srx]), (pastex2[srx], pastey2[srx]), (0, 0, 0), 1) # (X1, Y1), (X2, Y2)
+                            cv2.imencode('.jpeg', src1)[1].tofile(output_file)
 
-os.remove(output_folder + 'temp.jpeg')
-print('It cost ' + str(time.time()-tStart) + ' sec.')
+if os.path.isfile(output_folder + 'temp.jpeg'):
+    os.remove(output_folder + 'temp.jpeg')
+print('花費時間：%.2f秒' % (time.time()-t0))
